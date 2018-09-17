@@ -8,7 +8,6 @@ services:
     ports:
       - 3000:3000
     command: bin/rails s -p 3000 -b '0.0.0.0'
-    restart: always
     env_file: docker/.env
     environment:
       MYSQL_HOST: mysql
@@ -21,7 +20,6 @@ services:
 
   mysql:
     image: mysql:5
-    restart: always
     env_file: docker/.env
     volumes:
       - mysql_data:/var/lib/mysql
@@ -31,7 +29,6 @@ services:
     build:
       context: docker/solr
       dockerfile: Dockerfile
-    restart: always
     ports:
       - 8983:8983
     volumes:
