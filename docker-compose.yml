@@ -13,7 +13,6 @@ services:
     environment:
       MYSQL_HOST: mysql
       SOLR_URL: http://solr:8983/solr/geoblacklight
-#      BUNDLE_BIN: ''
     depends_on:
       - mysql
       - solr
