@@ -99,12 +99,26 @@ return_hash = JSON.parse(resp)
 doi = return_hash['id']
 doi_encoded = URI.escape(doi)
 ```
+## Dataset options
+
+To see the dataset fields and option in use, see the [Sample Dataset Object](https://github.com/CDL-Dryad/dryad/blob/master/documentation/sample_dataset.json).
+
+Useful options that control a dataset's behavior:
+- `skipDataciteUpdate` - If true, doesn't send any requests to DataCite when registering the dataset. This is useful when the dataset already has a DOI, which is present in the metadata being submitted.
+- `skipEmails` - If true, prevents emails from being sent to users on submission. Prevents emails regardless of whether the submission is successful or an error. Also stopps the emails that ask co-authors to register their ORCID. Does *not* stop the internal emails that are sent to Dryad admins if there is a submission error.
+- `loosenValidation` - Allows a dataset to be processed even if author information is incomplete (e.g., missing affiliations), or if the abstract is missing. It does still perform some basic validation of the dataset.
+
+The above settings get carried with a dataset into future API submissions, but the UI resets all of these values to `false` so that people can't avoid being good research citizens when they manually update their datasets. These settings are hidden when they're in the default (false) state to keep people from seeing them and trying to set them (since most people can't set them).
 
 ## Add data file(s) to your dataset
 
+You may upload multiple files for your dataset. Only all direct file uploads or all URLs may be used within a single submission. But you may create a new version of the submission with another batch of files to use a different method of getting them into the system.
+
+### Direct file upload
+
 Find a file on your file system to upload, get its path and determine its Content-Type.  You would send it to the server like the example below by changing the file\_path and content\_type values.
 
-You may upload multiple files for your dataset.
+For direct file uploads, do a PUT to {{url-domain-name}}/api/datasets/{{doi_encoded}}/files/{{filename-encoded}} and the body being sent would be the binary file.  Set the HTTP "Content-Description" header to add a short description.  Set the HTTP Content-Type appropriately for the file type (for example image/jpeg).
 
 ```bash
 curl --data-binary "@</path/to/my/file>" -i -X PUT "https://<domain-name>/api/datasets/<encoded-doi>/files/<encoded-file-name>" -H "Authorization: Bearer <token>" -H "Content-Type: <mime-type>" -H "Accept: application/json"
@@ -137,6 +151,32 @@ resp = RestClient.put(
 
 return_hash = JSON.parse(resp)
 ```
+
+After a file upload you will get a digest and digestType back in the JSON.  You can check this against your local file to be certain it was uploaded correctly if you wish.
+The other method is adding by URL.  You can do a POST to {{url-domain-name}}/api/datasets/{{doi_encoded}}/urls with json something like the following:
+
+### Upload by URL reference
+
+To upload a file that is referenced by URL, do a POST to `{{url-domain-name}}/api/datasets/{{doi_encoded}}/urls` with json something like the following:
+
+```
+{
+    "url": "https://raw.githubusercontent.com/CDL-Dryad/dryad/master/documentation/api_submission.md",
+    "digest": "aca3032d20c829a6060f1b90afda6d14",
+    "digestType": "md5",
+    "description": "This is the best file ever!",
+    "size": 1234,
+    "path": "api_submission.md",
+    "mimeType": "text/plain",
+    "skipValidation": true
+}
+```
+
+This will add entries to the database with the information you specify.  Only the `url` is required. Other fields, which are optional, are described below:
+
+- `path` can provide a filename when the name is not specified in the URL (this is common when the URL is using an identifier string rather than a file name)
+- `digest` and `digestType` are not required, but if they are added then they will be passed as part of the ingest manifest to Merritt. If the digest doesn't match when Merritt downloads the files from the internet, then Merritt will cause an error on ingesting and you'll need to check/fix it.
+- `skipValidation`, if true, will tell DASH to skip the step of validating the existence of the file
 
 ## Publish your dataset
 
@@ -269,3 +309,34 @@ resp = RestClient.put "https://#{domain_name}/api/datasets/#{doi_encoded}", meta
 Once staging is complete and to publish the changes to your dataset, please follow the "Publish your dataset" instructions again from the section above to publish this new version of your dataset.
 
 In addition to changing your metadata, you could've added additional files before re-publishing this updated version of your dataset.
+
+## Internal metadata fields
+
+### As an aggregate
+
+The internal metadata can be manipulated using either the internal id of a resource, or a dataset id:
+- GET /internal_data/{id}
+- PUT /internal_data/{id}
+- DELETE /internal_data/{id}
+- GET /datasets/{dataset_id}/internal_data
+- POST /datasets/{dataset_id}/internal_data
+
+### As individual fields
+
+You can POST request to either `api/datasets/<id>/add_internal_datum` or `api/datasets/<id>/set_internal_datum`, depending on the type of data. The body should be JSON in the form of `{"data_type":"mismatchedDOI","value":"223342”}`
+
+Fields that have single values (set_internal_datum):
+- publicationISSN
+- manuscriptNumber
+
+Field that allow multiple values (add_internal_datum):
+- mismatchedDOI
+- formerManuscriptNumber
+- duplicateItem
+
+## Curation status information
+
+- GET /resources/{id}/curation_activity
+
+Curation activity does lock down a few fields: the identifier_id is set by the dataset_id on creation and can’t be modified by PUT. Similarly, the user_id is set to the api user that creates the record and can’t be modified by PUT.
+
